@@ -7,7 +7,6 @@ def conv2d(prev, shape, scope_name):
 
 class Fishmodel:
     def __init__(self, X):
-        pass
+        # TODO: smart model
+        self.foo = tf.Variable(tf.constant(1))
 
-    def loss(self):
-        pass
