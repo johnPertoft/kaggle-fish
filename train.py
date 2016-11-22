@@ -72,10 +72,10 @@ if __name__ == "__main__":
         # Create the model
         X = tf.placeholder(tf.float32, (None, IMG_SHAPE[0], IMG_SHAPE[1], 3))
         target = tf.placeholder(tf.float32, (None, 8))
-        fish_model = Fishmodel(X, num_classes=8)
+        model = Fishmodel(X, num_classes=8)
         
         # Cross entropy loss
-        loss = tf.nn.softmax_cross_entropy_with_logits(fish_model.logits, target)
+        loss = tf.nn.softmax_cross_entropy_with_logits(model.logits, target)
 
         # Summary reports for tensorboard
         merged_summary = tf.merge_all_summaries()
@@ -88,6 +88,7 @@ if __name__ == "__main__":
         
         # Save model on ctrl-c
         def exit_handler(signal, frame):
+            print("Saving model checkpoint")
             saver.save(sess, os.path.join(CHECKPOINT_DIR, model_savename)) 
             sys.exit()
         signal.signal(signal.SIGINT, exit_handler)
@@ -100,5 +101,7 @@ if __name__ == "__main__":
         sess.run(tf.initialize_all_variables())
         while True:
             x_batch, y_batch = next(batches)
-            train_step.run(feed_dict={X: x_batch, target: y_batch})
+            train_step.run(feed_dict={X: x_batch, 
+                                      target: y_batch,
+                                      model.keep_prob: 0.5})
             # TODO: write accuracy to summary write sometimes
