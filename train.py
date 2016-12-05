@@ -4,13 +4,13 @@ import glob
 import os
 import signal
 import sys
-import random
 import multiprocessing
 
 import numpy as np
 import tensorflow as tf
 import cv2
 from sklearn.preprocessing import OneHotEncoder
+from sklearn.utils import shuffle
 from joblib import Memory
 
 from model import Fishmodel
@@ -66,7 +66,7 @@ def load_data(root):
 def batch_generator(X_train, y_train, batch_size):
     N = X_train.shape[0]
     while True:
-        X_train, y_train = random.shuffle(X_train, y_train)
+        X_train, y_train = shuffle(X_train, y_train)
         for i in range(0, N, batch_size):
             j = min(i + batch_size, N)
             yield X_train[i:j], y_train[i:j]
