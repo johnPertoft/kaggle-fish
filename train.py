@@ -10,6 +10,7 @@ import shutil
 import numpy as np
 import tensorflow as tf
 import cv2
+from sklearn.model_selection import KFold
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.utils import shuffle
 from joblib import Memory
@@ -71,6 +72,47 @@ def load_data(root, shape=IMAGE_SHAPE):
 
     return X_train, y_train, X_test
 
+def new_run(X_train, y_train, model_savename):
+    tf.reset_default_graph()
+    batches = batch_generator(X_train, y_train, batch_size=128)
+    
+    with tf.Session() as sess: 
+        # Create the model
+        X = tf.placeholder(tf.float32, (None, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3))
+        target = tf.placeholder(tf.float32, (None, NUM_CLASSES))
+        model = Fishmodel(X, num_classes=NUM_CLASSES)
+
+        saver = tf.train.Saver(tf.global_variables())
+        
+        # Cross entropy loss
+        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(model.logits, target, name="cross_entropy")
+        loss = tf.reduce_mean(cross_entropy, name="cross_entropy_mean")
+
+        # Accuracy
+        corrects = tf.equal(tf.argmax(tf.nn.softmax(model.logits), 1), tf.argmax(target, 1))
+        accuracy = tf.reduce_mean(tf.cast(corrects, tf.uint8))
+
+        # Summary reports for tensorboard
+        tf.scalar_summary("Mean Cross Entropy Loss", loss)
+        tf.scalar_summary("Accuracy", accuracy)
+        merged_summary = tf.merge_all_summaries()
+        summary_writer = tf.train.SummaryWriter(SUMMARY_DIR, sess.graph)
+        
+        global_step = tf.Variable(0, name='global_step', trainable=False)
+        train_step = tf.train.AdamOptimizer(1e-3).minimize(loss, global_step=global_step)
+        sess.run(tf.global_variables_initializer())
+        
+        print("Starting trainigni")
+        for val_i in range(int(1e7)):
+            X_batch, y_batch = next(batches)
+            _, summary, i = sess.run([train_step, merged_summary, global_step], feed_dict={X: X_batch, target: y_batch, model.keep_prob: 0.5})
+            summary_writer.add_summary(summary, i)
+   
+        # TODO run accuracy on whole validation set
+
+        saver.save(sess, model_savename + str(val_i))
+
+
 
 def batch_generator(X_train, y_train, batch_size):
     N = X_train.shape[0]
@@ -89,49 +131,13 @@ if __name__ == "__main__":
     args = argparser.parse_args()
 
     X_train, y_train, X_test = load_data(args.dataset_dir)
+   
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+    model_savename = args.run_name if args.run_name else timestamp
+    print("Model savename: ", model_savename)
 
     with tf.Session() as sess:
-    
-        # Create the model
-        X = tf.placeholder(tf.float32, (None, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3))
-        target = tf.placeholder(tf.float32, (None, NUM_CLASSES))
-        model = Fishmodel(X, num_classes=NUM_CLASSES)
-
-        # Cross entropy loss
-        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(model.logits, target, name="cross_entropy")
-        loss = tf.reduce_mean(cross_entropy, name="cross_entropy_mean")
-               
-        # Accuracy
-        corrects = tf.equal(tf.argmax(tf.nn.softmax(model.logits), 1), tf.argmax(target, 1))
-        accuracy = tf.reduce_mean(tf.cast(corrects, tf.uint8))
-
-        # Summary reports for tensorboard
-        tf.scalar_summary("Mean Cross Entropy Loss", loss)
-        tf.scalar_summary("Accuracy", accuracy)
-        merged_summary = tf.merge_all_summaries()
-        summary_writer = tf.train.SummaryWriter(SUMMARY_DIR, sess.graph)
-
-        saver = tf.train.Saver(tf.global_variables())
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-        model_savename = args.run_name if args.run_name else timestamp
-        print("Model savename: ", model_savename)
-
-        # Save model on ctrl-c
-        def exit_handler(signal, frame):
-            print("Saving model checkpoint")
-            saver.save(sess, os.path.join(CHECKPOINT_DIR, model_savename))
-            sys.exit()
-
-        signal.signal(signal.SIGINT, exit_handler)
-
-        print("Starting training.")
-        print("Exit with CTRL-C, model will be saved on exit.")
-
-        global_step = tf.Variable(0, name='global_step', trainable=False)
-        train_step = tf.train.AdamOptimizer(1e-3).minimize(loss, global_step=global_step)
-        batches = batch_generator(X_train, y_train, batch_size=128)
-        sess.run(tf.global_variables_initializer())
-        while True:
-            X_batch, y_batch = next(batches)
-            _, summary, i = sess.run([train_step, merged_summary, global_step], feed_dict={X: X_batch, target: y_batch, model.keep_prob: 0.5})
-            summary_writer.add_summary(summary, i)
+        kfold = KFold(n_splits=3)
+        for train_idx, val_idx in kfold.split(X_train):
+            # Start a new run with this split. 
+            new_run(X_train[train_idx], y_train[train_idx],  model_savename)
