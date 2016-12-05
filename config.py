@@ -1,0 +1,2 @@
+CLASS_NAMES = ["ALB", "BET", "DOL", "LAG", "NoF", "OTHER", "SHARK", "YFT"]
+NUM_CLASSES = len(CLASS_NAMES)

@@ -14,34 +14,32 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.utils import shuffle
 from joblib import Memory
 
+from config import CLASS_NAMES, NUM_CLASSES
 from model import Fishmodel
 
-memory = Memory('cache', verbose=0)
+cache = Memory('cache', verbose=0)
 
+IMAGE_SHAPE = (64, 64)
+CHECKPOINT_DIR = 'models'
 SUMMARY_DIR = 'tensorboard'
 if os.path.isdir(SUMMARY_DIR):
     shutil.rmtree(SUMMARY_DIR)
 else:
     os.mkdir(SUMMARY_DIR)
     
-CHECKPOINT_DIR = "models"
+
 if not os.path.isdir(CHECKPOINT_DIR):
     os.mkdir(CHECKPOINT_DIR)
-    
-IMG_SHAPE = (64, 64)  # TODO: too small?
+ 
 
-CLASS_NAMES = ["ALB", "BET", "DOL", "LAG", "NoF", "OTHER", "SHARK", "YFT"]
-NUM_CLASSES = len(CLASS_NAMES)
-
-
-def read_img(path, shape=IMG_SHAPE):
+def read_img(path, shape=IMAGE_SHAPE):
     img = cv2.imread(path)
     img = cv2.resize(img, shape)
     return img.astype(np.float32) / 255
 
 
-@memory.cache
-def load_data(root, shape=IMG_SHAPE):
+@cache.cache
+def load_data(root, shape=IMAGE_SHAPE):
 
     # Load all images into memory.
     paths = glob.glob(os.path.join(root, "**/*.jpg"), recursive=True)
@@ -95,7 +93,7 @@ if __name__ == "__main__":
     with tf.Session() as sess:
     
         # Create the model
-        X = tf.placeholder(tf.float32, (None, IMG_SHAPE[0], IMG_SHAPE[1], 3))
+        X = tf.placeholder(tf.float32, (None, IMAGE_SHAPE[0], IMAGE_SHAPE[1], 3))
         target = tf.placeholder(tf.float32, (None, NUM_CLASSES))
         model = Fishmodel(X, num_classes=NUM_CLASSES)
 
