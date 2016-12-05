@@ -5,6 +5,7 @@ import os
 import signal
 import sys
 import multiprocessing
+import shutil
 
 import numpy as np
 import tensorflow as tf
@@ -16,9 +17,19 @@ from joblib import Memory
 from model import Fishmodel
 
 memory = Memory('cache', verbose=0)
-SUMMARY_DIR = "/tmp/kaggle-fish"
-CHECKPOINT_DIR = "model-checkpoints"
+
+SUMMARY_DIR = 'tensorboard'
+if os.path.isdir(SUMMARY_DIR):
+    shutil.rmtree(SUMMARY_DIR)
+else:
+    os.mkdir(SUMMARY_DIR)
+    
+CHECKPOINT_DIR = "models"
+if not os.path.isdir(CHECKPOINT_DIR):
+    os.mkdir(CHECKPOINT_DIR)
+    
 IMG_SHAPE = (64, 64)  # TODO: too small?
+
 CLASS_NAMES = ["ALB", "BET", "DOL", "LAG", "NoF", "OTHER", "SHARK", "YFT"]
 NUM_CLASSES = len(CLASS_NAMES)
 
@@ -30,7 +41,7 @@ def read_img(path, shape=IMG_SHAPE):
 
 
 @memory.cache
-def load_data(root):
+def load_data(root, shape=IMG_SHAPE):
 
     # Load all images into memory.
     paths = glob.glob(os.path.join(root, "**/*.jpg"), recursive=True)
@@ -81,7 +92,8 @@ if __name__ == "__main__":
 
     X_train, y_train, X_test = load_data(args.dataset_dir)
 
-    with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+    with tf.Session() as sess:
+    
         # Create the model
         X = tf.placeholder(tf.float32, (None, IMG_SHAPE[0], IMG_SHAPE[1], 3))
         target = tf.placeholder(tf.float32, (None, NUM_CLASSES))
@@ -90,13 +102,18 @@ if __name__ == "__main__":
         # Cross entropy loss
         cross_entropy = tf.nn.softmax_cross_entropy_with_logits(model.logits, target, name="cross_entropy")
         loss = tf.reduce_mean(cross_entropy, name="cross_entropy_mean")
-        tf.scalar_summary("mean cross entropy loss", loss)
+               
+        # Accuracy
+        corrects = tf.equal(tf.argmax(tf.nn.softmax(model.logits), 1), tf.argmax(target, 1))
+        accuracy = tf.reduce_mean(tf.cast(corrects, tf.uint8))
 
         # Summary reports for tensorboard
+        tf.scalar_summary("Mean Cross Entropy Loss", loss)
+        tf.scalar_summary("Accuracy", accuracy)
         merged_summary = tf.merge_all_summaries()
         summary_writer = tf.train.SummaryWriter(SUMMARY_DIR, sess.graph)
 
-        saver = tf.train.Saver(tf.all_variables())
+        saver = tf.train.Saver(tf.global_variables())
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         model_savename = args.run_name if args.run_name else timestamp
         print("Model savename: ", model_savename)
@@ -112,11 +129,11 @@ if __name__ == "__main__":
         print("Starting training.")
         print("Exit with CTRL-C, model will be saved on exit.")
 
-        train_step = tf.train.AdamOptimizer(1e-3).minimize(loss)
+        global_step = tf.Variable(0, name='global_step', trainable=False)
+        train_step = tf.train.AdamOptimizer(1e-3).minimize(loss, global_step=global_step)
         batches = batch_generator(X_train, y_train, batch_size=128)
-        sess.run(tf.initialize_all_variables())
+        sess.run(tf.global_variables_initializer())
         while True:
             X_batch, y_batch = next(batches)
-            feed_dict = {X: X_batch, target: y_batch, model.keep_prob: 0.5}
-            _, loss_val = sess.run([train_step, loss], feed_dict=feed_dict)
-            print(loss_val)
+            _, summary, i = sess.run([train_step, merged_summary, global_step], feed_dict={X: X_batch, target: y_batch, model.keep_prob: 0.5})
+            summary_writer.add_summary(summary, i)
