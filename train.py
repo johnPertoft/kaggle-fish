@@ -23,6 +23,7 @@ cache = Memory('cache', verbose=0)
 IMAGE_SHAPE = (64, 64)
 CHECKPOINT_DIR = 'models'
 SUMMARY_DIR = 'tensorboard'
+
 if os.path.isdir(SUMMARY_DIR):
     shutil.rmtree(SUMMARY_DIR)
 else:
@@ -72,6 +73,17 @@ def load_data(root, shape=IMAGE_SHAPE):
 
     return X_train, y_train, X_test
 
+
+def batch_generator(X_train, y_train, batch_size):
+    """Generator to get batches of supplied input and target pairs"""
+    N = X_train.shape[0]
+    while True:
+        X_train, y_train = shuffle(X_train, y_train)
+        for i in range(0, N, batch_size):
+            j = min(i + batch_size, N)
+            yield X_train[i:j], y_train[i:j]
+
+
 def new_run(X_train, y_train, model_savename):
     tf.reset_default_graph()
     batches = batch_generator(X_train, y_train, batch_size=128)
@@ -109,18 +121,9 @@ def new_run(X_train, y_train, model_savename):
             summary_writer.add_summary(summary, i)
    
         # TODO run accuracy on whole validation set
+        # TODO: stop early depending on validation loss?
 
         saver.save(sess, model_savename + str(val_i))
-
-
-
-def batch_generator(X_train, y_train, batch_size):
-    N = X_train.shape[0]
-    while True:
-        X_train, y_train = shuffle(X_train, y_train)
-        for i in range(0, N, batch_size):
-            j = min(i + batch_size, N)
-            yield X_train[i:j], y_train[i:j]
 
 
 if __name__ == "__main__":
@@ -136,8 +139,7 @@ if __name__ == "__main__":
     model_savename = args.run_name if args.run_name else timestamp
     print("Model savename: ", model_savename)
 
-    with tf.Session() as sess:
-        kfold = KFold(n_splits=3)
-        for train_idx, val_idx in kfold.split(X_train):
-            # Start a new run with this split. 
-            new_run(X_train[train_idx], y_train[train_idx],  model_savename)
+    kfold = KFold(n_splits=3)
+    for train_idx, val_idx in kfold.split(X_train):
+        # Start a new run with this split. 
+        new_run(X_train[train_idx], y_train[train_idx],  model_savename)

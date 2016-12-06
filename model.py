@@ -42,8 +42,7 @@ class Fishmodel:
         self.keep_prob = tf.placeholder(tf.float32)
         self.dropout = tf.nn.dropout(self.mpool2, self.keep_prob)
         
-        self.flattened = flatten(self.dropout)
-        self.dense1 = dense(self.flattened, 2048, "Fully-connected Layer 1")
+        self.dense1 = dense(flatten(self.dropout), 2048, "Fully-connected Layer 1")
         self.dense2 = dense(self.dense1, 2048, "Fully-connected Layer 2")
         self.logits = dense(self.dense2, num_classes, "Fully-connected Layer 3", activation=None)
         self.softmax = tf.nn.softmax(self.logits)
