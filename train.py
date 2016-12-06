@@ -16,6 +16,8 @@ from sklearn.utils import shuffle
 from joblib import Memory
 
 from config import CLASS_NAMES, NUM_CLASSES
+from inference import infer
+from util import batch_generator 
 from model import Fishmodel
 
 cache = Memory('cache', verbose=0)
@@ -42,7 +44,7 @@ def read_img(path, shape=IMAGE_SHAPE):
 
 @cache.cache
 def load_data(root, shape=IMAGE_SHAPE):
-
+    """Load data into memory and cache it."""
     # Load all images into memory.
     paths = glob.glob(os.path.join(root, "**/*.jpg"), recursive=True)
     with multiprocessing.Pool(multiprocessing.cpu_count()) as p:
@@ -65,7 +67,7 @@ def load_data(root, shape=IMAGE_SHAPE):
     X_test = np.array([_[1] for _ in test])
   
     # Calculate channel-wise mean for training data.
-    rgb_mean = X_train.mean(axis=(0, 1, 2))  # TODO: Maybe remove per image instead?
+    rgb_mean = X_train.mean(axis=(0, 1, 2))
     
     # Color-normalize images.
     X_train -= rgb_mean
@@ -73,20 +75,10 @@ def load_data(root, shape=IMAGE_SHAPE):
 
     return X_train, y_train, X_test
 
-
-def batch_generator(X_train, y_train, batch_size):
-    """Generator to get batches of supplied input and target pairs"""
-    N = X_train.shape[0]
-    while True:
-        X_train, y_train = shuffle(X_train, y_train)
-        for i in range(0, N, batch_size):
-            j = min(i + batch_size, N)
-            yield X_train[i:j], y_train[i:j]
-
-
-def new_run(X_train, y_train, model_savename):
+def new_run(X_train, y_train, X_val, y_val, model_savename):
+    """Trains a model with given training data."""
     tf.reset_default_graph()
-    batches = batch_generator(X_train, y_train, batch_size=128)
+    batches = batch_generator((X_train, y_train), batch_size=128)
     
     with tf.Session() as sess: 
         # Create the model
@@ -114,16 +106,21 @@ def new_run(X_train, y_train, model_savename):
         train_step = tf.train.AdamOptimizer(1e-3).minimize(loss, global_step=global_step)
         sess.run(tf.global_variables_initializer())
         
-        print("Starting trainigni")
-        for val_i in range(int(1e7)):
+        print("Starting training...")
+        for _ in range(int(1e7)):
             X_batch, y_batch = next(batches)
             _, summary, i = sess.run([train_step, merged_summary, global_step], feed_dict={X: X_batch, target: y_batch, model.keep_prob: 0.5})
             summary_writer.add_summary(summary, i)
-   
-        # TODO run accuracy on whole validation set
-        # TODO: stop early depending on validation loss?
+            if i > 100000 and i % 1000 == 0:
+                probs_val = infer(sess, model, X_val)
+                # TODO: compare with y_val to see if we should stop early
 
-        saver.save(sess, model_savename + str(val_i))
+
+        # TODO run accuracy on whole validation set
+        probs_val = infer(sess, model, X_val)
+        # TODO: define tf ops for this total accuracy
+
+        saver.save(sess, model_savename)
 
 
 if __name__ == "__main__":
@@ -137,9 +134,13 @@ if __name__ == "__main__":
    
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
     model_savename = args.run_name if args.run_name else timestamp
-    print("Model savename: ", model_savename)
+    print("Model base savename: ", model_savename)
 
     kfold = KFold(n_splits=3)
-    for train_idx, val_idx in kfold.split(X_train):
+    for run_index, (train_idx, val_idx) in enumerate(kfold.split(X_train)):
         # Start a new run with this split. 
-        new_run(X_train[train_idx], y_train[train_idx],  model_savename)
+        new_run(X_train[train_idx], 
+                y_train[train_idx],
+                X_train[val_idx],
+                y_train[val_idx],
+                model_savename + str(run_index))
