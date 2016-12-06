@@ -89,7 +89,7 @@ def new_run(X_train, y_train, model_savename):
         loss = tf.reduce_mean(cross_entropy, name="cross_entropy_mean")
 
         # Accuracy
-        corrects = tf.equal(tf.argmax(tf.nn.softmax(model.logits), 1), tf.argmax(target, 1))
+        corrects = tf.equal(tf.argmax(model.softmax, 1), tf.argmax(target, 1))
         accuracy = tf.reduce_mean(tf.cast(corrects, tf.uint8))
 
         # Summary reports for tensorboard
