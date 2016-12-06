@@ -16,7 +16,7 @@ def max_pool2d(previous, shape, stride):
 
 
 def flatten(previous):
-    shape = np.prod(previous.get_shape().as_list()[1:]) # Skip batch dimension
+    shape = np.prod(previous.get_shape().as_list()[1:])  # Skip batch dimension
     return tf.reshape(previous, (-1, shape))
 
 
