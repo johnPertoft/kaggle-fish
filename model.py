@@ -31,19 +31,19 @@ def dense(previous, output_dim, name, activation=tf.nn.relu):
 
 class Fishmodel:
     def __init__(self, X, num_classes):
-        self.conv1 = conv2d(X, (3, 3, 3, 16), "conv1")
-        self.conv2 = conv2d(self.conv1, (3, 3, 16, 32), "conv2")
+        self.conv1 = conv2d(X, (3, 3, 3, 16), "Convolution Layer 1")
+        self.conv2 = conv2d(self.conv1, (3, 3, 16, 32), "Convolution Layer 2")
         self.mpool1 = max_pool2d(self.conv2, (1, 2, 2, 1), (1, 2, 2, 1))
 
-        self.conv3 = conv2d(self.mpool1, (3, 3, 32, 64), "conv3")
-        self.conv4 = conv2d(self.conv3, (3, 3, 64, 64), "conv4")
+        self.conv3 = conv2d(self.mpool1, (3, 3, 32, 64), "Convolution Layer 3")
+        self.conv4 = conv2d(self.conv3, (3, 3, 64, 64), "Convolution Layer 4")
         self.mpool2 = max_pool2d(self.conv4, (1, 2, 2, 1), (1, 2, 2, 1))
 
         self.keep_prob = tf.placeholder(tf.float32)
         self.dropout = tf.nn.dropout(self.mpool2, self.keep_prob)
         
         self.flattened = flatten(self.dropout)
-        self.dense1 = dense(self.flattened, 2048, "dense1")
-        self.dense2 = dense(self.dense1, 2048, "dense2")
-        self.logits = dense(self.dense2, num_classes, "logits", activation=None)
+        self.dense1 = dense(self.flattened, 2048, "Fully-connected Layer 1")
+        self.dense2 = dense(self.dense1, 2048, "Fully-connected Layer 2")
+        self.logits = dense(self.dense2, num_classes, "Fully-connected Layer 3", activation=None)
         self.softmax = tf.nn.softmax(self.logits)
