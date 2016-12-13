@@ -53,18 +53,18 @@ def load_data(root, shape=IMAGE_SHAPE):
         
     # Split test and training data according to Kaggle's rules.
     test_directory = 'test_stg1'
-    train = [_ for _ in images if test_directory not in _[0]]
-    test = [_ for _ in images if test_directory in _[0]]
+    train = [(path, img) for path, img in images if test_directory not in path]
+    test = [(path, img) for path, img in images if test_directory in path]
 
     # Create class label for every training image in a horrible way for the lulz.
     labels = [[CLASS_NAMES.index(class_name) for class_name in CLASS_NAMES if class_name in path] for path in [_[0] for _ in train]]
    
-    # One-hot encode labels.
+    # One-hot encode labels. # TODO: use sparse with tensorflow instead
     y_train = OneHotEncoder(sparse=False).fit_transform(np.array(labels))
     
     # Stack images as ndarrays.
-    X_train = np.array([_[1] for _ in train])
-    X_test = np.array([_[1] for _ in test])
+    X_train = np.array([img for _, img in train])
+    X_test = np.array([img for _, img in test])
   
     # Calculate channel-wise mean for training data.
     rgb_mean = X_train.mean(axis=(0, 1, 2))
@@ -76,7 +76,7 @@ def load_data(root, shape=IMAGE_SHAPE):
     return X_train, y_train, X_test
 
 def new_run(X_train, y_train, X_val, y_val, model_savename):
-    """Trains a model with given training data."""
+    """Trains and saves a model with given training data."""
     tf.reset_default_graph()
     batches = batch_generator((X_train, y_train), batch_size=128)
     
@@ -135,7 +135,9 @@ if __name__ == "__main__":
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
     model_savename = args.run_name if args.run_name else timestamp
     print("Model base savename: ", model_savename)
-
+    
+    # Train n_splits models with X_train split into training and validation set
+    # in n_splits different ways.
     kfold = KFold(n_splits=3)
     for run_index, (train_idx, val_idx) in enumerate(kfold.split(X_train)):
         # Start a new run with this split. 
@@ -143,4 +145,4 @@ if __name__ == "__main__":
                 y_train[train_idx],
                 X_train[val_idx],
                 y_train[val_idx],
-                model_savename + str(run_index))
+                "{}_val_{}".format(model_savename, run_index))

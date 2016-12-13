@@ -37,17 +37,21 @@ def dense(name, previous, output_dim, activation=tf.nn.relu):
 
 
 class Fishmodel:
+    @classmethod
+    def from_file(cls, path):
+        pass # TODO 
+
     def __init__(self, X, num_classes):
         self.conv1 = conv2d(X, (3, 3, 3, 16), "Convolution1")
         self.conv2 = conv2d(self.conv1, (3, 3, 16, 32), "Convolution2")
         self.pool1 = max_pool(self.conv2, (1, 2, 2, 1), "MaxPooling1")
 
-        self.conv3 = conv2d(self.mpool1, (3, 3, 32, 64), "Convolution3")
+        self.conv3 = conv2d(self.pool1, (3, 3, 32, 64), "Convolution3")
         self.conv4 = conv2d(self.conv3, (3, 3, 64, 64), "Convolution4")
         self.pool2 = max_pool(self.conv4, (1, 2, 2, 1), "MaxPooling2")
 
         self.keep_prob = tf.placeholder(tf.float32)
-        self.dropout = tf.nn.dropout(self.mpool2, self.keep_prob)
+        self.dropout = tf.nn.dropout(self.pool2, self.keep_prob)
         
         self.dense1 = dense(flatten(self.dropout), 2048, "Dense1")
         self.dense2 = dense(self.dense1, 2048, "Dense2")
